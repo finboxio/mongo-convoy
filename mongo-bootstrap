@@ -2,28 +2,38 @@
 
 set -e
 
-MOUNT_POINT=${MOUNT_POINT}
+MOUNT_POINT=${MOUNT_POINT:?"MOUNT_POINT must be set"}
 MONGO_PORT=${MONGO_PORT:-27017}
 
-if [[ "$MONGO_ROLE" != "arbiter" && "$MOUNT_POINT" != "" ]]; then
+if [[ "$MONGO_ROLE" != "arbiter" && -e /var/run/convoy ]]; then
   while [[ ! -e ${MOUNT_POINT}/convoy.ready ]]; do
     echo "Waiting for convoy mount"
     sleep 10
   done
 fi
 
-MOUNT_POINT=${MOUNT_POINT:-/data}
-
 mkdir -p ${MOUNT_POINT}/db &> /dev/null
 chown -R mongodb:mongodb ${MOUNT_POINT}
 
+
 # Setup shared keyfile
-while [[ "$MONGO_REPLSET" != "" && "$MONGO_S3_KEYFILE" && ! -e /etc/mongo/keyfile ]]; do
-  aws s3 cp ${MONGO_S3_KEYFILE} /etc/mongo/keyfile || true
-  if [[ "$MONGO_ROLE" == "primary" && ! -e /etc/mongo/keyfile ]]; then
-    openssl rand -base64 741 > /etc/mongo/keyfile
-    aws s3 cp /etc/mongo/keyfile ${MONGO_S3_KEYFILE}
+while [[ "$MONGO_REPLSET" != "" && ! -e /etc/mongo/keyfile ]]; do
+  MONGO_KEYFILE=${MONGO_KEYFILE:?"MONGO_KEYFILE must be set"}
+  protocol=${MONGO_KEYFILE:0:5}
+  if [[ "$protocol" == "s3://" ]]; then
+    aws s3 cp ${MONGO_KEYFILE} /etc/mongo/keyfile || true
+    if [[ "$MONGO_ROLE" == "primary" && ! -e /etc/mongo/keyfile ]]; then
+      openssl rand -base64 741 > /etc/mongo/keyfile
+      aws s3 cp /etc/mongo/keyfile ${MONGO_KEYFILE}
+    fi
+  else
+    cp ${MONGO_KEYFILE} /etc/mongo/keyfile
+    if [[ "$MONGO_ROLE" == "primary" && ! -e /etc/mongo/keyfile ]]; then
+      openssl rand -base64 741 > /etc/mongo/keyfile
+      cp /etc/mongo/keyfile ${MONGO_KEYFILE}
+    fi
   fi
+
   chown -R mongodb:mongodb /etc/mongo/keyfile
   chmod 600 /etc/mongo/keyfile
   sleep 5
@@ -32,10 +42,8 @@ done
 # Start init process to setup default accounts
 mongo-init &
 
-if [[ "$MONGO_REPLSET" != "" && "$MONGO_S3_KEYFILE" ]]; then
+if [[ "$MONGO_REPLSET" != "" ]]; then
   exec dosu mongodb mongod --dbpath ${MOUNT_POINT}/db --port ${MONGO_PORT} --auth --replSet ${MONGO_REPLSET} --keyFile /etc/mongo/keyfile
-elif [[ "$MONGO_REPLSET" != "" && "$MONGO_S3_KEYFILE" == "" ]]; then
-  exec dosu mongodb mongod --dbpath ${MOUNT_POINT}/db --port ${MONGO_PORT} --replSet ${MONGO_REPLSET}
 else
   exec dosu mongodb mongod --dbpath ${MOUNT_POINT}/db --port ${MONGO_PORT} --auth
 fi
