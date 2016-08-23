@@ -1,6 +1,5 @@
-DOCKER_REGISTRY=docker.finbox.io
 DOCKER_USER=finboxio
-DOCKER_IMAGE=yahoo
+DOCKER_IMAGE=mongo-convoy
 
 GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 GIT_COMMIT := $(shell git rev-parse HEAD)
@@ -17,7 +16,7 @@ BUILD_VERSION := $(shell if [[ "$(VERSION_DIRTY)" -gt "0" ]]; then echo "$(VERSI
 BUILD_VERSION := $(shell if [[ "$(VERSION_DIRTY)" -gt "0" ]] || [[ "$(GIT_DIRTY)" == "true" ]]; then echo "$(BUILD_VERSION)-dev"; else echo $(BUILD_VERSION); fi)
 BUILD_VERSION := $(shell if [[ "$(GIT_BRANCH)" != "master" ]]; then echo $(GIT_BRANCH)-$(BUILD_VERSION); else echo $(BUILD_VERSION); fi)
 
-DOCKER_BUILD := $(shell if [[ "$(DOCKER_REGISTRY)" ]]; then echo $(DOCKER_REGISTRY)/$(DOCKER_USER)/$(DOCKER_IMAGE):$(BUILD_VERSION); else echo $(DOCKER_USER)/$(DOCKER_IMAGE):$(BUILD_VERSION))
+DOCKER_BUILD := $(shell if [[ "$(DOCKER_REGISTRY)" ]]; then echo $(DOCKER_REGISTRY)/$(DOCKER_USER)/$(DOCKER_IMAGE):$(BUILD_VERSION); else echo $(DOCKER_USER)/$(DOCKER_IMAGE):$(BUILD_VERSION); fi)
 
 docker.build:
 	@docker build -t $(DOCKER_BUILD) .
