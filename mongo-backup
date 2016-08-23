@@ -12,6 +12,12 @@ MOUNT_POINT=${MOUNT_POINT:?"MOUNT_POINT must be set"}
 
 REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq --raw-output .region)
 
+if [[ ! -e /var/run/convoy ]]; then
+  echo "backup only enabled when convoy is available"
+  sleep 30
+  exit 1
+fi
+
 primary=$(mongo $MONGO_HOST/admin --eval "rs.isMaster().primary" | tail -n +3)
 if [[ "$primary" == "$MONGO_HOST:$MONGO_PORT" ]]; then
   echo "refusing to backup primary instance."
